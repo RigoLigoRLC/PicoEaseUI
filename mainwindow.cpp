@@ -247,3 +247,9 @@ void MainWindow::on_btnClearLogs_clicked()
     model->ClearLogs();
 }
 
+
+void MainWindow::on_btnUnlockTarget_clicked()
+{
+    model->IssueBulkCommand(PicoEaseModel::BCUnlockTarget);
+}
+

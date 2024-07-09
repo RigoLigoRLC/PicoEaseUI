@@ -52,6 +52,8 @@ private slots:
 
     void on_btnClearLogs_clicked();
 
+    void on_btnUnlockTarget_clicked();
+
 private:
     QSettings settings;
     Ui::MainWindow *ui;

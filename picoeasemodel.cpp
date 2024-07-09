@@ -79,7 +79,7 @@ bool PicoEaseModel::IssueBulkCommand(BulkCommandType type, QMap<QString, QVarian
     }
 
     switch (type) {
-    case BCOpenTarget: {
+    case BCUnlockTarget: {
         WriteBulkCommand("B\n");
         break;
     }
@@ -191,8 +191,8 @@ void PicoEaseModel::HandleReturnData(QByteArrayView retData)
     if (!m_manualCommand) {
         switch (m_currentBulkCommand) {
 
-        case BCOpenTarget:
-            // TODO:
+        case BCUnlockTarget:
+            BulkCommandHandleUnlockDevice(retData);
             break;
         case BCDumpRom:
             BulkCommandHandleDumpRom(retData);
@@ -238,6 +238,15 @@ void PicoEaseModel::BulkCommandHandleDumpRom(QByteArrayView d)
     }
 }
 
+void PicoEaseModel::BulkCommandHandleUnlockDevice(QByteArrayView d)
+{
+    auto str = QString::fromLatin1(d);
+    if (str.startsWith("Lock:")) {
+        auto isLocked = QStringView(str).sliced(5).toInt();
+        m_bulkCommandArgs["unlocked"] = (isLocked == 0);
+    }
+}
+
 void PicoEaseModel::BulkCommandFinish()
 {
     Q_ASSERT(m_currentBulkCommand != BCNone && m_busy);
@@ -245,7 +254,12 @@ void PicoEaseModel::BulkCommandFinish()
     switch (m_currentBulkCommand) {
     case BCNone:
         break;
-    case BCOpenTarget:
+    case BCUnlockTarget:
+        if (m_bulkCommandArgs.key("unlocked", 0).toInt() == 1) {
+            AppendToLog("Unlock SUCCESSFUL.", System);
+        } else {
+            AppendToLog("Unlock may be UNSUCCESSFUL.", System);
+        }
         break;
     case BCDumpRom:
         emit UpdateDumpContentToUi(m_memDumpBuffer, m_bulkCommandArgs["offset"].toString().toULongLong(nullptr, 16));

@@ -22,11 +22,11 @@ public:
 
     enum BulkCommandType {
         BCNone,
-        BCOpenTarget,
+        BCUnlockTarget,
         BCDumpRom,
     };
 
-    bool IssueBulkCommand(BulkCommandType type, QMap<QString, QVariant> args);
+    bool IssueBulkCommand(BulkCommandType type, QMap<QString, QVariant> args = QMap<QString, QVariant>());
 
 signals:
     void SerialPortUnexpectedDisconnection();
@@ -55,6 +55,7 @@ private:
     // Related functions
     // Return data handlers for different functions
     void BulkCommandHandleDumpRom(QByteArrayView d);
+    void BulkCommandHandleUnlockDevice(QByteArrayView d);
     // Finish handler
     void BulkCommandFinish();
     void WriteBulkCommand(QString s); ///< This merely commands PicoEASE and logs to window
