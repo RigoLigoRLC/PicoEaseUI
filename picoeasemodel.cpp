@@ -1,5 +1,6 @@
 
 #include "picoeasemodel.h"
+#include <limits>
 #include <QBrush>
 #include <QDebug>
 
@@ -14,8 +15,12 @@ PicoEaseModel::PicoEaseModel(QObject* parent) : QObject(parent) {
     // AppendToLog("[TEST] BulkCmd", BulkCmd);
     // AppendToLog("[TEST] ManualCmd", ManualCmd);
     // AppendToLog("[TEST] ReturnData", ReturnData);
-
     ClearInternalState();
+}
+
+void PicoEaseModel::ClearLogs()
+{
+    m_logModel.removeRows(0, m_logModel.rowCount(), QModelIndex());
 }
 
 bool PicoEaseModel::ConnectPicoEaseSerialPort(QString portName)
@@ -29,6 +34,7 @@ bool PicoEaseModel::ConnectPicoEaseSerialPort(QString portName)
     if (!ret) return ret;
 
     // Set init params (for virtual COM port 1152008N1 is not so important but...)
+    emit UpdateProgressMessage(tr("Ready"));
     m_port.setFlowControl(QSerialPort::NoFlowControl);
     m_port.setDataTerminalReady(true);
     m_port.setBaudRate(115200);
@@ -60,7 +66,7 @@ void PicoEaseModel::SendPicoEaseCommand(QString cmd)
 
     emit BulkCommandLockUi(true);
 
-    AppendToLog(cmd, ManualCmd);
+    AppendToLog(cmd.trimmed(), ManualCmd);
     m_manualCommand = true;
     m_busy = true;
     m_port.write(cmd.toLatin1());
@@ -80,6 +86,11 @@ bool PicoEaseModel::IssueBulkCommand(BulkCommandType type, QMap<QString, QVarian
     case BCDumpRom: {
         WriteBulkCommand(QString("A %1 %2\n").arg(args["offset"].toString(),
                                                   args["length"].toString()));
+        m_memDumpBuffer.reserve(args["length"].toString().toInt(nullptr, 16));
+        emit UpdateProgressMessage(
+            tr("Reading memory at %1 length %2").arg(args["offset"].toString(),
+                                                     args["length"].toString()));
+        emit UpdateProgressBar(true, 0, 1);
         break;
     }
     case BCNone:
@@ -155,6 +166,10 @@ void PicoEaseModel::AppendToLog(QString text, LogType type)
     auto index = m_logModel.index(m_logModel.rowCount() - 1);
     m_logModel.setData(index, text);
     m_logModel.setData(index, color, Qt::ForegroundRole);
+
+    if (m_logAutoscrollSignalEnabled) {
+        emit LogViewAutoscroll(); // This is stupid
+    }
 }
 
 void PicoEaseModel::HandleReturnData(QByteArrayView retData)
@@ -212,6 +227,7 @@ void PicoEaseModel::BulkCommandHandleDumpRom(QByteArrayView d)
             return;
         }
         m_memDumpBuffer.append(bytes.data() + 4, bytes[0]);
+        emit UpdateProgressBar(true, m_memDumpBuffer.size(), m_memDumpBuffer.capacity());
         break;
 
     case 0x01: break; // EOF
@@ -239,10 +255,12 @@ void PicoEaseModel::BulkCommandFinish()
     m_busy = false;
     m_currentBulkCommand = BCNone;
     emit BulkCommandLockUi(false);
+    emit UpdateProgressMessage(tr("Ready"));
+    emit UpdateProgressBar(false, 0, 1);
 }
 
 void PicoEaseModel::WriteBulkCommand(QString s)
 {
-    AppendToLog(s, BulkCmd);
-    m_port.write(s.toLatin1());
+    AppendToLog(s.trimmed(), BulkCmd);
+    m_port.write(s.toLatin1().trimmed());
 }
